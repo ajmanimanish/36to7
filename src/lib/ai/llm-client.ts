@@ -90,6 +90,13 @@ export async function analyzeReflectionText(reflectionText: string): Promise<Ref
   // Determine if we are in true production mode vs Vercel preview/dev/local
   const isTrueProduction = (vercelEnv === 'production') || (!vercelEnv && nodeEnv === 'production');
 
+  console.log('[DEBUG]', {
+    hasApiKey: !!apiKey,
+    vercelEnv: process.env.VERCEL_ENV,
+    nodeEnv: process.env.NODE_ENV,
+    isTrueProduction,
+  });
+
   if (!apiKey) {
     // Hard-fail only in true production without key (unless ALLOW_AI_MOCK is explicitly set)
     if (isTrueProduction && process.env.ALLOW_AI_MOCK !== 'true') {
