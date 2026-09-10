@@ -1,0 +1,481 @@
+// Prisma Schema for 36to7
+// Web-first relationship understanding companion
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// Enums
+// ------------------------------------------------------
+
+enum OnboardingState {
+  NOT_STARTED
+  FRAMEWORK_VIEWED
+  PRIORITIES_SET
+  JOURNEY_CREATED
+  COMPLETED
+}
+
+enum Importance {
+  ESSENTIAL
+  IMPORTANT
+  FLEXIBLE
+  UNSURE
+}
+
+enum JourneyStage {
+  GETTING_TO_KNOW
+  SERIOUSLY_CONSIDERING
+  DECIDED_TO_MARRY
+  WEDDING_PREPARATION
+  ARCHIVED
+}
+
+enum GunaState {
+  NOT_EXPLORED
+  TAKING_SHAPE
+  UNDERSTOOD
+  ALIGNED
+  DIFFERENT_BUT_OKAY
+  WORTH_DISCUSSING
+  IMPORTANT_UNRESOLVED
+}
+
+enum ConfidenceLevel {
+  GUESSING
+  SOME_SENSE
+  PRETTY_SURE
+  CLEAR
+}
+
+enum PerspectiveType {
+  MY_VIEW
+  MY_UNDERSTANDING_OF_THEM
+  THEIR_VIEW
+  SHARED_UNDERSTANDING
+}
+
+enum Visibility {
+  PRIVATE
+  SHARED
+}
+
+enum ConcernSeverity {
+  EXPLORE
+  IMPORTANT
+  SERIOUS
+  SAFETY
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum SensitivityLevel {
+  STANDARD
+  SENSITIVE
+  INTIMATE
+}
+
+enum ConcernStatus {
+  ACTIVE
+  DISMISSED
+  RESOLVED
+}
+
+// ------------------------------------------------------
+// User & Authentication Models (Auth.js / NextAuth compatible)
+// ------------------------------------------------------
+
+model User {
+  id                  String           @id @default(uuid())
+  email               String           @unique
+  emailVerified       DateTime?
+  passwordHash        String?          // For email/password authentication
+  displayName         String?
+  avatarUrl           String?
+  timezone            String?          @default("Asia/Kolkata")
+  locale              String?          @default("en-IN")
+  onboardingState     OnboardingState  @default(NOT_STARTED)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  profile             UserProfile?
+  accounts            Account[]
+  sessions            Session[]
+  priorities          UserGunaPriority[]
+  ownedJourneys       Journey[]        @relation("JourneyOwner")
+  partnerJourneys     Journey[]        @relation("JourneyPartner")
+  reflections         Reflection[]
+  perspectives        PersonPerspective[]
+  vowReflections      VowReflection[]
+  sentInvitations     PartnerInvitation[] @relation("Inviter")
+  sharedItemsCreated  SharedItem[]     @relation("SharedItemOwner")
+  sharedItemsReceived SharedItem[]     @relation("SharedItemTarget")
+  notifications       Notification[]
+  auditEvents         AuditEvent[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model UserProfile {
+  id                 String     @id @default(uuid())
+  userId             String     @unique
+  preferredName      String?
+  broadLifeContext   String?    @db.Text
+  relationshipStatus String?
+  profileVisibility  Visibility @default(PRIVATE)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// ------------------------------------------------------
+// Core Framework Models (36 Guna / 8 Koota / 7 Vows)
+// ------------------------------------------------------
+
+model FrameworkVersion {
+  id            String    @id @default(uuid())
+  versionNumber Int       @unique
+  label         String
+  description   String?   @db.Text
+  publishedAt   DateTime? @default(now())
+  retiredAt     DateTime?
+
+  kootas             Koota[]
+  vows               Vow[]
+  reflectionAnalyses ReflectionAnalysis[]
+
+  @@map("framework_versions")
+}
+
+model Koota {
+  id                    String  @id @default(uuid())
+  frameworkVersionId    String
+  slug                  String  @unique
+  name                  String
+  traditionalPointValue Int
+  orderIndex            Int
+  modernDescription     String  @db.Text
+  wasReframe            String? @db.Text
+  nowReframe            String? @db.Text
+
+  frameworkVersion FrameworkVersion @relation(fields: [frameworkVersionId], references: [id], onDelete: Cascade)
+  gunas            Guna[]
+
+  @@map("kootas")
+}
+
+model Guna {
+  id               String           @id @default(uuid())
+  kootaId          String
+  number           Int              @unique
+  slug             String           @unique
+  name             String
+  description      String           @db.Text
+  guidanceText     String?          @db.Text
+  sensitivityLevel SensitivityLevel @default(STANDARD)
+  orderIndex       Int
+  wasReframe       String?          @db.Text
+  nowReframe       String?          @db.Text
+
+  koota            Koota               @relation(fields: [kootaId], references: [id], onDelete: Cascade)
+  userPriorities   UserGunaPriority[]
+  journeyStates    JourneyGunaState[]
+  perspectives     PersonPerspective[]
+
+  @@map("gunas")
+}
+
+model UserGunaPriority {
+  userId       String
+  gunaId       String
+  importance   Importance
+  personalNote String?    @db.Text
+  updatedAt    DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guna Guna @relation(fields: [gunaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, gunaId])
+  @@map("user_guna_priorities")
+}
+
+// ------------------------------------------------------
+// Relationship Journey & Reflection Models
+// ------------------------------------------------------
+
+model Journey {
+  id                 String       @id @default(uuid())
+  ownerUserId        String
+  partnerUserId      String?
+  partnerDisplayName String
+  sourceType         String?      // arranged_introduction, family_introduction, mutual_friends, app, other
+  stage              JourneyStage @default(GETTING_TO_KNOW)
+  decisionMadeAt     DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  owner              User                @relation("JourneyOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  partner            User?               @relation("JourneyPartner", fields: [partnerUserId], references: [id], onDelete: SetNull)
+  gunaStates         JourneyGunaState[]
+  perspectives       PersonPerspective[]
+  reflections        Reflection[]
+  partnerInvitations PartnerInvitation[]
+  sharedItems        SharedItem[]
+  vowReflections     VowReflection[]
+  concernFlags       ConcernFlag[]
+
+  @@map("journeys")
+}
+
+model JourneyGunaState {
+  journeyId       String
+  gunaId          String
+  state           GunaState        @default(NOT_EXPLORED)
+  userConfidence  ConfidenceLevel?
+  aiSummary       String?          @db.Text
+  lastReflectedAt DateTime?
+  updatedAt       DateTime         @updatedAt
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  guna    Guna    @relation(fields: [gunaId], references: [id], onDelete: Cascade)
+
+  @@id([journeyId, gunaId])
+  @@map("journey_guna_states")
+}
+
+model PersonPerspective {
+  id              String          @id @default(uuid())
+  journeyId       String
+  gunaId          String
+  userId          String
+  perspectiveType PerspectiveType
+  positionText    String          @db.Text
+  importance      Importance?
+  confidence      ConfidenceLevel?
+  source          String?         // direct_user, ai_inferred, shared_confirmation
+  visibility      Visibility      @default(PRIVATE)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  guna    Guna    @relation(fields: [gunaId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("person_perspectives")
+}
+
+model Reflection {
+  id              String       @id @default(uuid())
+  journeyId       String
+  authorUserId    String
+  title           String?
+  body            String       @db.Text
+  interactionDate DateTime?
+  interactionType String?      // call, message, date, family_meeting, travel, disagreement, other
+  visibility      Visibility   @default(PRIVATE)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  journey      Journey              @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  author       User                 @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  analyses     ReflectionAnalysis[]
+  concernFlags ConcernFlag[]
+
+  @@map("reflections")
+}
+
+model ReflectionAnalysis {
+  id                      String   @id @default(uuid())
+  reflectionId            String
+  frameworkVersionId      String
+  detectedGunaJson        Json     // Native Postgres Jsonb type
+  summary                 String   @db.Text
+  clearerPointsJson       Json
+  emergingPointsJson      Json
+  differencesJson         Json
+  selfDiscoveriesJson     Json
+  areasWorthExploringJson Json
+  concernsJson            Json     // Array of Concern objects { severity, text }
+  isMockAnalysis          Boolean  @default(false)
+  modelMetadataJson       Json?
+  createdAt               DateTime @default(now())
+
+  reflection       Reflection       @relation(fields: [reflectionId], references: [id], onDelete: Cascade)
+  frameworkVersion FrameworkVersion @relation(fields: [frameworkVersionId], references: [id], onDelete: Cascade)
+  concernFlags     ConcernFlag[]
+
+  @@map("reflection_analyses")
+}
+
+// ------------------------------------------------------
+// Future-Scaffolded & System Models
+// ------------------------------------------------------
+
+model PartnerInvitation {
+  id                  String           @id @default(uuid())
+  journeyId           String
+  inviterUserId       String
+  inviteeEmail        String
+  invitationTokenHash String           @unique
+  status              InvitationStatus @default(PENDING)
+  expiresAt           DateTime
+  acceptedAt          DateTime?
+  createdAt           DateTime         @default(now())
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  inviter User    @relation("Inviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+
+  @@map("partner_invitations")
+}
+
+model SharedItem {
+  id           String    @id @default(uuid())
+  journeyId    String
+  ownerUserId  String
+  targetUserId String?
+  objectType   String    // reflection, perspective, vow_reflection
+  objectId     String
+  visibility   Visibility @default(SHARED)
+  sharedAt     DateTime  @default(now())
+  revokedAt    DateTime?
+
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  owner   User    @relation("SharedItemOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  target  User?   @relation("SharedItemTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@map("shared_items")
+}
+
+model Vow {
+  id                       String   @id @default(uuid())
+  frameworkVersionId       String
+  orderIndex               Int      @unique
+  slug                     String   @unique
+  title                    String
+  subtitle                 String?  @db.Text
+  description              String   @db.Text
+  guidanceJson             Json     // Native Postgres Jsonb type (array of strings)
+  connectedGunaNumbersJson Json     // Native Postgres Jsonb type (array of integers)
+  wasReframe               String?  @db.Text
+  nowReframe               String?  @db.Text
+
+  frameworkVersion FrameworkVersion @relation(fields: [frameworkVersionId], references: [id], onDelete: Cascade)
+  reflections      VowReflection[]
+
+  @@map("vows")
+}
+
+model VowReflection {
+  id           String     @id @default(uuid())
+  vowId        String
+  journeyId    String
+  authorUserId String
+  body         String     @db.Text
+  visibility   Visibility @default(PRIVATE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  vow     Vow     @relation(fields: [vowId], references: [id], onDelete: Cascade)
+  journey Journey @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@map("vow_reflections")
+}
+
+model ConcernFlag {
+  id                   String           @id @default(uuid())
+  journeyId            String
+  reflectionId         String?
+  reflectionAnalysisId String?
+  category             String           // behavior, communication, coercion, safety, financial, family
+  severity             ConcernSeverity
+  text                 String           @db.Text
+  status               ConcernStatus    @default(ACTIVE)
+  createdAt            DateTime         @default(now())
+
+  journey            Journey             @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  reflection         Reflection?         @relation(fields: [reflectionId], references: [id], onDelete: SetNull)
+  reflectionAnalysis ReflectionAnalysis? @relation(fields: [reflectionAnalysisId], references: [id], onDelete: SetNull)
+
+  @@map("concern_flags")
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String    // info, concern_alert, invitation, sharing
+  payloadJson Json
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String   // login, password_reset, invite_sent, sharing_changed, export_requested, deletion_requested
+  detailsJson Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_events")
+}

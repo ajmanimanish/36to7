@@ -1,0 +1,9 @@
+{
+  "//": "Vercel Cron is dormant on Hobby tier. GitHub Actions (.github/workflows/reflection-cron-sweep.yml) serves as the active 5-minute primary scheduled runner.",
+  "crons": [
+    {
+      "path": "/api/jobs/analyze-reflection",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

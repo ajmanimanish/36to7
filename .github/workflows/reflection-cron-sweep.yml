@@ -1,0 +1,17 @@
+name: Reflection Analysis Cron Sweep
+
+on:
+  schedule:
+    # Run every 5 minutes as primary scheduled sweep mechanism
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cron Sweep API Endpoint
+        run: |
+          APP_URL="${{ secrets.APP_URL || 'https://36to7.vercel.app' }}"
+          echo "Triggering reflection sweep on $APP_URL/api/jobs/analyze-reflection"
+          curl -s -X GET "$APP_URL/api/jobs/analyze-reflection"

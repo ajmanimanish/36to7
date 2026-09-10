@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F8F5EF;
+  --foreground: #20201D;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Journal & Editorial Utility Styles */
+.font-serif-title {
+  font-family: 'Fraunces', Cormorant Garamond, Georgia, serif;
+}
+
+::selection {
+  background: #EAE2D5;
+  color: #4B3344;
+}
